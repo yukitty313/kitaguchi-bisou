@@ -27,9 +27,11 @@
   /* ============================== */
 
   let allRecords   = {};
+  let allCompanies = {};  // { id: { name } }
   let editingId    = null;
   let currentMonth = '';
   let unsubDb      = null;
+  let unsubComp    = null;
 
   /* ---- Auth state ---- */
   onAuthStateChanged(auth, user => {
@@ -170,6 +172,7 @@
     setTodayDate();
     buildMonthOptions();
     listenRecords();
+    listenCompanies();
   }
 
   function setTodayDate() {
@@ -207,6 +210,79 @@
     document.getElementById('sum-month-label2').textContent = label;
   }
 
+  /* ---- Companies listener ---- */
+  function listenCompanies() {
+    const dbRef = ref(db, 'companies');
+    unsubComp = onValue(dbRef, snap => {
+      allCompanies = snap.val() || {};
+      renderCompanySelect();
+      renderCompanyList();
+    });
+  }
+
+  function renderCompanySelect() {
+    const sel = document.getElementById('f-company');
+    if (!sel) return;
+    const current = sel.value;
+    sel.innerHTML = '<option value="">-- 会社を選択 --</option>';
+    Object.entries(allCompanies)
+      .sort((a, b) => a[1].name.localeCompare(b[1].name, 'ja'))
+      .forEach(([id, c]) => {
+        const opt = document.createElement('option');
+        opt.value = id;
+        opt.textContent = c.name;
+        sel.appendChild(opt);
+      });
+    if (current) sel.value = current;
+  }
+
+  function renderCompanyList() {
+    const ul = document.getElementById('company-list');
+    if (!ul) return;
+    const entries = Object.entries(allCompanies).sort((a, b) => a[1].name.localeCompare(b[1].name, 'ja'));
+    if (entries.length === 0) {
+      ul.innerHTML = '<li class="comp-empty">まだ登録されていません</li>';
+      return;
+    }
+    ul.innerHTML = entries.map(([id, c]) => `
+      <li class="comp-item">
+        <span class="comp-name">${esc(c.name)}</span>
+        <button class="comp-del-btn" onclick="deleteCompany('${id}')">削除</button>
+      </li>
+    `).join('');
+  }
+
+  window.openCompanyModal = function() {
+    document.getElementById('company-modal').style.display = 'flex';
+    document.getElementById('new-company-input').value = '';
+    document.getElementById('company-add-error').style.display = 'none';
+  };
+
+  window.closeCompanyModal = function() {
+    document.getElementById('company-modal').style.display = 'none';
+  };
+
+  window.addCompany = function() {
+    const input = document.getElementById('new-company-input');
+    const errEl = document.getElementById('company-add-error');
+    const name  = input.value.trim();
+    errEl.style.display = 'none';
+    if (!name) { errEl.textContent = '会社名を入力してください'; errEl.style.display = 'block'; return; }
+    const exists = Object.values(allCompanies).some(c => c.name === name);
+    if (exists) { errEl.textContent = 'すでに登録されています'; errEl.style.display = 'block'; return; }
+    push(ref(db, 'companies'), { name })
+      .then(() => { input.value = ''; showToast('会社を追加しました'); })
+      .catch(() => showToast('エラーが発生しました'));
+  };
+
+  window.deleteCompany = function(id) {
+    if (!confirm('この会社を削除しますか？
+登録済みデータの会社名表示に影響する場合があります。')) return;
+    remove(ref(db, 'companies/' + id))
+      .then(() => showToast('削除しました'))
+      .catch(() => showToast('削除に失敗しました'));
+  };
+
   /* ---- Firebase listener ---- */
   function listenRecords() {
     const dbRef = ref(db, 'records');
@@ -233,18 +309,21 @@
     document.getElementById('record-count').textContent = filtered.length + '件';
 
     filtered.sort((a, b) => b.date.localeCompare(a.date));
-    tbody.innerHTML = filtered.map(r => `
+    tbody.innerHTML = filtered.map(r => {
+      const compName = r.companyId && allCompanies[r.companyId] ? esc(allCompanies[r.companyId].name) : '—';
+      return `
       <tr>
         <td class="td-date">${formatDate(r.date)}</td>
         <td class="td-name">${esc(r.name)}</td>
+        <td class="td-company">${compName}</td>
         <td class="td-amount">${formatAmount(r.amount)}</td>
         <td class="td-note">${esc(r.note || '—')}</td>
         <td class="td-actions">
           <button class="btn-edit" onclick="startEdit('${r.id}')">編集</button>
           <button class="btn-del"  onclick="deleteRecord('${r.id}')">削除</button>
         </td>
-      </tr>
-    `).join('');
+      </tr>`;
+    }).join('');
   }
 
   /* ---- Summary ---- */
@@ -274,7 +353,8 @@
 
     const btn = document.getElementById('submit-btn');
     btn.disabled = true;
-    const record = { date, name, amount: Number(amount), note };
+    const companyId = document.getElementById('f-company').value;
+    const record = { date, name, companyId, amount: Number(amount), note };
 
     const promise = editingId
       ? update(ref(db, 'records/' + editingId), record)
@@ -295,10 +375,11 @@
     const r = allRecords[id];
     if (!r) return;
     editingId = id;
-    document.getElementById('f-date').value   = r.date;
-    document.getElementById('f-name').value   = r.name;
-    document.getElementById('f-amount').value = r.amount;
-    document.getElementById('f-note').value   = r.note || '';
+    document.getElementById('f-date').value    = r.date;
+    document.getElementById('f-name').value    = r.name;
+    document.getElementById('f-company').value = r.companyId || '';
+    document.getElementById('f-amount').value  = r.amount;
+    document.getElementById('f-note').value    = r.note || '';
     document.getElementById('form-title-label').textContent = '編集中';
     document.getElementById('submit-btn').textContent       = '更新する';
     document.getElementById('cancel-btn').style.display     = 'block';
@@ -309,10 +390,11 @@
 
   function resetForm() {
     editingId = null;
-    document.getElementById('f-date').value   = toDateStr(new Date());
-    document.getElementById('f-name').value   = '';
-    document.getElementById('f-amount').value = '';
-    document.getElementById('f-note').value   = '';
+    document.getElementById('f-date').value    = toDateStr(new Date());
+    document.getElementById('f-name').value    = '';
+    document.getElementById('f-company').value = '';
+    document.getElementById('f-amount').value  = '';
+    document.getElementById('f-note').value    = '';
     document.getElementById('form-title-label').textContent = '新規登録';
     document.getElementById('submit-btn').textContent       = '登録する';
     document.getElementById('cancel-btn').style.display     = 'none';
@@ -333,16 +415,42 @@
     filtered.sort((a, b) => a.date.localeCompare(b.date));
 
     const [y, m] = currentMonth.split('-');
-    const rows = [
-      ['日付', '現場名', '金額（円）', '備考'],
-      ...filtered.map(r => [r.date, r.name, Number(r.amount), r.note || '']),
-      ['', '合計', filtered.reduce((s, r) => s + Number(r.amount||0), 0), '']
-    ];
-
-    const ws = XLSX.utils.aoa_to_sheet(rows);
-    ws['!cols'] = [{ wch: 14 }, { wch: 30 }, { wch: 16 }, { wch: 30 }];
     const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, `${y}年${parseInt(m)}月`.slice(0, 31));
+
+    // 会社ごとにグループ化
+    const groups = {};
+    filtered.forEach(r => {
+      const compName = r.companyId && allCompanies[r.companyId] ? allCompanies[r.companyId].name : '未設定';
+      if (!groups[compName]) groups[compName] = [];
+      groups[compName].push(r);
+    });
+
+    // 会社別シート
+    Object.entries(groups).sort((a, b) => a[0].localeCompare(b[0], 'ja')).forEach(([compName, rows]) => {
+      const data = [
+        ['日付', '現場名', '会社名', '金額（円）', '備考'],
+        ...rows.map(r => [r.date, r.name, compName, Number(r.amount), r.note || '']),
+        ['', '合計', '', rows.reduce((s, r) => s + Number(r.amount||0), 0), '']
+      ];
+      const ws = XLSX.utils.aoa_to_sheet(data);
+      ws['!cols'] = [{ wch: 14 }, { wch: 28 }, { wch: 18 }, { wch: 14 }, { wch: 28 }];
+      const sheetName = compName.slice(0, 31);
+      XLSX.utils.book_append_sheet(wb, ws, sheetName);
+    });
+
+    // 全社合計シート
+    const allData = [
+      ['日付', '現場名', '会社名', '金額（円）', '備考'],
+      ...filtered.map(r => {
+        const compName = r.companyId && allCompanies[r.companyId] ? allCompanies[r.companyId].name : '未設定';
+        return [r.date, r.name, compName, Number(r.amount), r.note || ''];
+      }),
+      ['', '合計', '', filtered.reduce((s, r) => s + Number(r.amount||0), 0), '']
+    ];
+    const wsAll = XLSX.utils.aoa_to_sheet(allData);
+    wsAll['!cols'] = [{ wch: 14 }, { wch: 28 }, { wch: 18 }, { wch: 14 }, { wch: 28 }];
+    XLSX.utils.book_append_sheet(wb, wsAll, '全社合計');
+
     XLSX.writeFile(wb, `現場管理_${currentMonth}.xlsx`);
     showToast('Excelをダウンロードしました');
   };
@@ -376,24 +484,24 @@
   /* ===== Reset & Base ===== */
   *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
   :root {
-    --bg:        #0F1117;
-    --surface:   #1A1D27;
-    --surface2:  #222535;
-    --border:    #2E3148;
-    --text:      #E8EAF0;
-    --muted:     #6B7194;
-    --accent:    #6C8EFF;
-    --accent-bg: #1A2040;
-    --accent-bd: #3A4F9A;
-    --danger:    #FF5C5C;
-    --danger-bg: #2A1010;
-    --success:   #3DD68C;
+    --bg:        #EEF5FF;
+    --surface:   #FFFFFF;
+    --surface2:  #F4F9FF;
+    --border:    #C8DCF5;
+    --text:      #1E3A5F;
+    --muted:     #5A7FA8;
+    --accent:    #2563EB;
+    --accent-bg: #EFF6FF;
+    --accent-bd: #93C5FD;
+    --danger:    #DC2626;
+    --danger-bg: #FEF2F2;
+    --success:   #15803D;
     --radius-sm: 8px;
     --radius-md: 12px;
     --radius-lg: 16px;
     --font-mono: 'DM Mono', 'Courier New', monospace;
-    --shadow-sm: 0 1px 3px rgba(0,0,0,.3), 0 1px 2px rgba(0,0,0,.2);
-    --shadow-md: 0 4px 24px rgba(0,0,0,.4);
+    --shadow-sm: 0 1px 4px rgba(37,99,235,.08);
+    --shadow-md: 0 4px 20px rgba(37,99,235,.10);
   }
   body {
     font-family: 'Hiragino Kaku Gothic ProN', 'Noto Sans JP', sans-serif;
@@ -415,7 +523,7 @@
     align-items: center;
     justify-content: center;
     padding: 1.5rem;
-    background: var(--surface2);
+    background: var(--bg);
   }
   .login-card {
     background: var(--surface);
@@ -453,20 +561,20 @@
   .field input {
     width: 100%;
     padding: 10px 14px;
-    border: 1px solid var(--border);
+    border: 1.5px solid var(--border);
     border-radius: var(--radius-sm);
     font-size: 14px;
     color: var(--text);
-    background: var(--surface);
+    background: var(--surface2);
     outline: none;
-    transition: border-color .15s;
+    transition: border-color .15s, background .15s;
     font-family: inherit;
   }
-  .field input:focus { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-bg); }
+  .field input:focus { border-color: var(--accent); background: var(--surface); box-shadow: 0 0 0 3px var(--accent-bg); }
   .btn-primary {
     width: 100%;
     padding: 11px;
-    background: var(--text);
+    background: var(--accent);
     color: #fff;
     border: none;
     border-radius: var(--radius-sm);
@@ -496,7 +604,7 @@
   #app-screen { display: none; }
   .app-header {
     background: var(--surface);
-    border-bottom: 1px solid var(--border);
+    border-bottom: 1.5px solid var(--border);
     padding: .875rem 1.25rem;
     display: flex;
     align-items: center;
@@ -571,10 +679,10 @@
   .filter-bar-left { display: flex; align-items: center; gap: 8px; }
   select.month-select {
     padding: 7px 12px;
-    border: 1px solid var(--border);
+    border: 1.5px solid var(--border);
     border-radius: var(--radius-sm);
     font-size: 14px;
-    font-weight: 600;
+    font-weight: 500;
     color: var(--text);
     background: var(--surface);
     cursor: pointer;
@@ -607,12 +715,14 @@
     margin-bottom: 1.25rem;
   }
   .section-title {
-    font-size: 13px;
-    font-weight: 700;
+    font-size: 12px;
+    font-weight: 600;
     color: var(--muted);
-    letter-spacing: .05em;
+    letter-spacing: .06em;
     text-transform: uppercase;
     margin-bottom: 1rem;
+    padding-bottom: .5rem;
+    border-bottom: 1.5px solid var(--border);
   }
   .form-grid {
     display: grid;
@@ -632,17 +742,17 @@
   .form-field textarea {
     width: 100%;
     padding: 9px 12px;
-    border: 1px solid var(--border);
+    border: 1.5px solid var(--border);
     border-radius: var(--radius-sm);
     font-size: 14px;
     color: var(--text);
-    background: var(--surface);
+    background: var(--surface2);
     outline: none;
-    transition: border-color .15s;
+    transition: border-color .15s, background .15s;
     font-family: inherit;
   }
   .form-field input:focus,
-  .form-field textarea:focus { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-bg); }
+  .form-field textarea:focus { border-color: var(--accent); background: var(--surface); box-shadow: 0 0 0 3px var(--accent-bg); }
   .form-field textarea { resize: vertical; min-height: 64px; }
   .form-field.span2 { grid-column: span 2; }
   @media (max-width: 480px) { .form-field.span2 { grid-column: span 1; } }
@@ -650,7 +760,7 @@
   .btn-submit {
     flex: 1;
     padding: 10px;
-    background: var(--text);
+    background: var(--accent);
     color: #fff;
     border: none;
     border-radius: var(--radius-sm);
@@ -699,7 +809,7 @@
     vertical-align: middle;
   }
   tr:last-child td { border-bottom: none; }
-  tr:hover td { background: var(--bg); }
+  tr:hover td { background: var(--surface2); }
   .td-date { font-family: var(--font-mono); font-size: 12px; color: var(--muted); white-space: nowrap; }
   .td-name { font-weight: 600; max-width: 180px; }
   .td-amount { font-family: var(--font-mono); font-size: 13px; font-weight: 600; white-space: nowrap; text-align: right; }
@@ -769,6 +879,45 @@
     font-size: 13px;
     margin-bottom: 1rem;
   }
+  .form-select {
+    width: 100%;
+    padding: 9px 12px;
+    border: 1.5px solid var(--border);
+    border-radius: var(--radius-sm);
+    font-size: 14px;
+    color: var(--text);
+    background: var(--surface2);
+    outline: none;
+    cursor: pointer;
+    font-family: inherit;
+    transition: border-color .15s;
+  }
+  .form-select:focus { border-color: var(--accent); background: var(--surface); box-shadow: 0 0 0 3px var(--accent-bg); }
+  .td-company { font-size: 13px; color: var(--muted); }
+  .comp-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 10px 14px;
+    border-bottom: 1px solid var(--border);
+    font-size: 14px;
+    color: var(--text);
+  }
+  .comp-item:last-child { border-bottom: none; }
+  .comp-name { font-weight: 500; }
+  .comp-del-btn {
+    border: 1px solid #FECACA;
+    background: none;
+    border-radius: 6px;
+    padding: 4px 10px;
+    font-size: 12px;
+    color: var(--danger);
+    cursor: pointer;
+    font-family: inherit;
+    flex-shrink: 0;
+  }
+  .comp-del-btn:hover { background: var(--danger-bg); }
+  .comp-empty { padding: 1rem; text-align: center; color: var(--muted); font-size: 13px; }
   .loading-overlay {
     position: fixed; inset: 0;
     background: var(--bg);
@@ -803,7 +952,6 @@
   <!-- ログインカード -->
   <div class="login-card" id="login-card">
     <div class="login-logo">
-      <div class="login-logo-icon">🏗</div>
       <div>
         <div class="login-logo-text">現場管理</div>
         <div class="login-logo-sub">Genba Kanri System</div>
@@ -829,7 +977,6 @@
   <!-- パスワードリセット（メール送信）カード -->
   <div class="login-card hidden" id="reset-card">
     <div class="login-logo">
-      <div class="login-logo-icon">🏗</div>
       <div>
         <div class="login-logo-text">現場管理</div>
         <div class="login-logo-sub">Genba Kanri System</div>
@@ -852,7 +999,6 @@
   <!-- パスワード変更（ログイン後）カード -->
   <div class="login-card hidden" id="change-card">
     <div class="login-logo">
-      <div class="login-logo-icon">🏗</div>
       <div>
         <div class="login-logo-text">現場管理</div>
         <div class="login-logo-sub">Genba Kanri System</div>
@@ -887,11 +1033,13 @@
 
   <header class="app-header">
     <div class="app-header-left">
-      <div class="app-header-logo">🏗</div>
       <div class="app-header-title">現場管理</div>
     </div>
     <div class="app-header-right">
       <span class="user-badge" id="user-email-badge"></span>
+      <button class="btn-icon" onclick="openCompanyModal()">
+        <span>会社管理</span>
+      </button>
       <button class="btn-icon" onclick="openChangePanel()">
         <span>パスワード変更</span>
       </button>
@@ -916,10 +1064,16 @@
           <input type="text" id="f-name" placeholder="例：〇〇橋 近接点検">
         </div>
         <div class="form-field">
+          <label>会社名</label>
+          <select id="f-company" class="form-select">
+            <option value="">-- 会社を選択 --</option>
+          </select>
+        </div>
+        <div class="form-field">
           <label>金額（円）</label>
           <input type="number" id="f-amount" placeholder="例：150000" min="0">
         </div>
-        <div class="form-field">
+        <div class="form-field span2">
           <label>備考</label>
           <input type="text" id="f-note" placeholder="メモ（任意）">
         </div>
@@ -960,6 +1114,7 @@
             <tr>
               <th>日付</th>
               <th>現場名</th>
+              <th>会社名</th>
               <th style="text-align:right">金額</th>
               <th>備考</th>
               <th></th>
@@ -982,6 +1137,22 @@
     </div>
 
   </main>
+</div>
+
+<!-- ===== 会社管理モーダル ===== -->
+<div id="company-modal" style="display:none;position:fixed;inset:0;background:rgba(30,58,95,.35);z-index:500;align-items:center;justify-content:center;padding:1rem;">
+  <div style="background:var(--surface);border-radius:var(--radius-lg);border:1px solid var(--border);padding:1.5rem;width:100%;max-width:420px;box-shadow:var(--shadow-md);">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:1.25rem;">
+      <h2 style="font-size:16px;font-weight:600;color:var(--text);">会社管理</h2>
+      <button onclick="closeCompanyModal()" style="background:none;border:none;font-size:20px;cursor:pointer;color:var(--muted);line-height:1;">×</button>
+    </div>
+    <div style="display:flex;gap:8px;margin-bottom:.75rem;">
+      <input type="text" id="new-company-input" placeholder="会社名を入力" style="flex:1;padding:9px 12px;border:1.5px solid var(--border);border-radius:var(--radius-sm);font-size:14px;color:var(--text);background:var(--surface2);outline:none;font-family:inherit;" onkeydown="if(event.key==='Enter')addCompany()">
+      <button onclick="addCompany()" style="padding:9px 16px;background:var(--accent);color:#fff;border:none;border-radius:var(--radius-sm);font-size:14px;font-weight:600;cursor:pointer;font-family:inherit;white-space:nowrap;">追加</button>
+    </div>
+    <div id="company-add-error" style="display:none;color:var(--danger);font-size:13px;margin-bottom:.75rem;"></div>
+    <ul id="company-list" style="list-style:none;border:1px solid var(--border);border-radius:var(--radius-sm);overflow:hidden;max-height:280px;overflow-y:auto;"></ul>
+  </div>
 </div>
 
 <div class="toast" id="toast"></div>
