@@ -223,6 +223,7 @@
       allCompanies = snap.val() || {};
       renderCompanySelect();
       renderCompanyList();
+      renderTable();  // 会社名バッジを再描画
     });
   }
 
@@ -726,19 +727,19 @@
   select.company-filter:focus { border-color: var(--accent); }
   .record-count { font-size: 13px; color: var(--muted); }
   .btn-excel {
-    border: 1px solid var(--border);
-    background: var(--surface);
+    border: none;
+    background: #16A34A;
     border-radius: var(--radius-sm);
-    padding: 7px 14px;
+    padding: 7px 16px;
     font-size: 13px;
     font-weight: 600;
-    color: var(--success);
+    color: #fff;
     cursor: pointer;
     display: flex; align-items: center; gap: 5px;
     font-family: inherit;
-    transition: background .15s;
+    transition: opacity .15s;
   }
-  .btn-excel:hover { background: #F0FDF4; }
+  .btn-excel:hover { opacity: .85; }
 
   /* ===== Form Section ===== */
   .section {
@@ -760,7 +761,7 @@
   }
   .form-grid {
     display: grid;
-    grid-template-columns: 1fr 1fr;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
     gap: 10px;
   }
   @media (max-width: 480px) { .form-grid { grid-template-columns: 1fr; } }
@@ -775,6 +776,7 @@
   .form-field input,
   .form-field textarea {
     width: 100%;
+    min-width: 0;
     padding: 9px 12px;
     border: 1.5px solid var(--border);
     border-radius: var(--radius-sm);
@@ -784,6 +786,7 @@
     outline: none;
     transition: border-color .15s, background .15s;
     font-family: inherit;
+    box-sizing: border-box;
   }
   .form-field input:focus,
   .form-field textarea:focus { border-color: var(--accent); background: var(--surface); box-shadow: 0 0 0 3px var(--accent-bg); }
@@ -982,6 +985,7 @@
   }
   .form-select {
     width: 100%;
+    min-width: 0;
     padding: 9px 12px;
     border: 1.5px solid var(--border);
     border-radius: var(--radius-sm);
@@ -992,6 +996,7 @@
     cursor: pointer;
     font-family: inherit;
     transition: border-color .15s;
+    box-sizing: border-box;
   }
   .form-select:focus { border-color: var(--accent); background: var(--surface); box-shadow: 0 0 0 3px var(--accent-bg); }
   .td-company { font-size: 13px; color: var(--muted); }
