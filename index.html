@@ -765,6 +765,14 @@
     gap: 10px;
   }
   @media (max-width: 480px) { .form-grid { grid-template-columns: 1fr; } }
+  @media (max-width: 480px) {
+    .form-field input[type="date"] {
+      font-size: 13px;
+      padding: 9px 6px;
+      min-width: 0;
+      width: 100%;
+    }
+  }
   .form-field label {
     display: block;
     font-size: 12px;
@@ -1166,20 +1174,20 @@
           <input type="date" id="f-date">
         </div>
         <div class="form-field">
-          <label>現場名</label>
-          <input type="text" id="f-name" placeholder="例：〇〇橋 近接点検">
-        </div>
-        <div class="form-field">
           <label>会社名</label>
           <select id="f-company" class="form-select">
             <option value="">-- 会社を選択 --</option>
           </select>
         </div>
+        <div class="form-field span2">
+          <label>現場名</label>
+          <input type="text" id="f-name" placeholder="例：〇〇橋 近接点検">
+        </div>
         <div class="form-field">
           <label>金額（円）</label>
           <input type="number" id="f-amount" placeholder="例：150000" min="0">
         </div>
-        <div class="form-field span2">
+        <div class="form-field">
           <label>備考</label>
           <input type="text" id="f-note" placeholder="メモ（任意）">
         </div>
