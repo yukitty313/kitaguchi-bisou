@@ -6,7 +6,7 @@
 <title>現場管理アプリ</title>
 <script type="module">
   import { initializeApp } from 'https://cdn.jsdelivr.net/npm/firebase@10.12.0/app/+esm';
-  import { getAuth, signInWithEmailAndPassword, signOut, onAuthStateChanged } from 'https://cdn.jsdelivr.net/npm/firebase@10.12.0/auth/+esm';
+  import { getAuth, signInWithEmailAndPassword, signOut, onAuthStateChanged, sendPasswordResetEmail, reauthenticateWithCredential, EmailAuthProvider, updatePassword } from 'https://cdn.jsdelivr.net/npm/firebase@10.12.0/auth/+esm';
   import { getDatabase, ref, push, update, remove, onValue } from 'https://cdn.jsdelivr.net/npm/firebase@10.12.0/database/+esm';
   import * as XLSX from 'https://cdn.jsdelivr.net/npm/xlsx@0.18.5/+esm';
 
@@ -65,6 +65,85 @@
   };
 
   window.doLogout = function() { signOut(auth); };
+
+  /* ---- Panel switcher ---- */
+  window.showPanel = function(id) {
+    ['login-card','reset-card','change-card'].forEach(p => {
+      document.getElementById(p).classList.add('hidden');
+    });
+    document.getElementById(id).classList.remove('hidden');
+    // エラー・成功メッセージリセット
+    ['reset-error','reset-success','change-error','change-success'].forEach(el => {
+      const e = document.getElementById(el);
+      if (e) { e.classList.remove('show'); e.classList.add('hidden'); }
+    });
+  };
+
+  /* ---- パスワードリセットメール送信 ---- */
+  window.doResetEmail = function() {
+    const email = document.getElementById('reset-email').value.trim();
+    const btn   = document.getElementById('reset-btn');
+    const err   = document.getElementById('reset-error');
+    const suc   = document.getElementById('reset-success');
+    err.classList.remove('show');
+    suc.classList.add('hidden');
+    if (!email) { err.textContent = 'メールアドレスを入力してください'; err.classList.add('show'); return; }
+    btn.disabled = true; btn.textContent = '送信中...';
+    sendPasswordResetEmail(auth, email)
+      .then(() => { suc.classList.remove('hidden'); })
+      .catch(e => {
+        const msg = e.code === 'auth/user-not-found' ? 'このメールアドレスは登録されていません' : 'エラーが発生しました（' + e.code + '）';
+        err.textContent = msg; err.classList.add('show');
+      })
+      .finally(() => { btn.disabled = false; btn.textContent = 'リセットメールを送信'; });
+  };
+
+  /* ---- パスワード変更（ログイン後） ---- */
+  window.openChangePanel = function() {
+    document.getElementById('app-screen').style.display = 'none';
+    document.getElementById('login-screen').classList.remove('hidden');
+    window.showPanel('change-card');
+    document.getElementById('change-current').value = '';
+    document.getElementById('change-new').value     = '';
+    document.getElementById('change-confirm').value = '';
+  };
+
+  window.closeChangePanel = function() {
+    document.getElementById('login-screen').classList.add('hidden');
+    document.getElementById('app-screen').style.display = 'block';
+  };
+
+  window.doChangePassword = function() {
+    const current  = document.getElementById('change-current').value;
+    const newPass  = document.getElementById('change-new').value;
+    const confirm  = document.getElementById('change-confirm').value;
+    const btn      = document.getElementById('change-btn');
+    const err      = document.getElementById('change-error');
+    const suc      = document.getElementById('change-success');
+    err.classList.remove('show'); suc.classList.add('hidden');
+    if (!current)            { err.textContent = '現在のパスワードを入力してください'; err.classList.add('show'); return; }
+    if (newPass.length < 6)  { err.textContent = '新しいパスワードは6文字以上にしてください'; err.classList.add('show'); return; }
+    if (newPass !== confirm)  { err.textContent = '新しいパスワードが一致しません'; err.classList.add('show'); return; }
+    btn.disabled = true; btn.textContent = '変更中...';
+    const user       = auth.currentUser;
+    const credential = EmailAuthProvider.credential(user.email, current);
+    reauthenticateWithCredential(user, credential)
+      .then(() => updatePassword(user, newPass))
+      .then(() => {
+        suc.classList.remove('hidden');
+        document.getElementById('change-current').value = '';
+        document.getElementById('change-new').value     = '';
+        document.getElementById('change-confirm').value = '';
+        setTimeout(() => window.closeChangePanel(), 1500);
+      })
+      .catch(e => {
+        const msg = (e.code === 'auth/wrong-password' || e.code === 'auth/invalid-credential')
+          ? '現在のパスワードが正しくありません'
+          : 'エラーが発生しました（' + e.code + '）';
+        err.textContent = msg; err.classList.add('show');
+      })
+      .finally(() => { btn.disabled = false; btn.textContent = 'パスワードを変更する'; });
+  };
 
   function showLoginError(msg) {
     const el = document.getElementById('login-error');
@@ -297,23 +376,24 @@
   /* ===== Reset & Base ===== */
   *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
   :root {
-    --bg:        #F5F4F0;
-    --surface:   #FFFFFF;
-    --border:    #E2E0D8;
-    --text:      #1A1917;
-    --muted:     #888780;
-    --accent:    #1D4ED8;
-    --accent-bg: #EFF4FF;
-    --accent-bd: #BFCFFF;
-    --danger:    #DC2626;
-    --danger-bg: #FEF2F2;
-    --success:   #15803D;
+    --bg:        #0F1117;
+    --surface:   #1A1D27;
+    --surface2:  #222535;
+    --border:    #2E3148;
+    --text:      #E8EAF0;
+    --muted:     #6B7194;
+    --accent:    #6C8EFF;
+    --accent-bg: #1A2040;
+    --accent-bd: #3A4F9A;
+    --danger:    #FF5C5C;
+    --danger-bg: #2A1010;
+    --success:   #3DD68C;
     --radius-sm: 8px;
     --radius-md: 12px;
     --radius-lg: 16px;
     --font-mono: 'DM Mono', 'Courier New', monospace;
-    --shadow-sm: 0 1px 3px rgba(0,0,0,.06), 0 1px 2px rgba(0,0,0,.04);
-    --shadow-md: 0 4px 16px rgba(0,0,0,.08);
+    --shadow-sm: 0 1px 3px rgba(0,0,0,.3), 0 1px 2px rgba(0,0,0,.2);
+    --shadow-md: 0 4px 24px rgba(0,0,0,.4);
   }
   body {
     font-family: 'Hiragino Kaku Gothic ProN', 'Noto Sans JP', sans-serif;
@@ -335,7 +415,7 @@
     align-items: center;
     justify-content: center;
     padding: 1.5rem;
-    background: var(--bg);
+    background: var(--surface2);
   }
   .login-card {
     background: var(--surface);
@@ -668,6 +748,27 @@
   .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
 
   /* ===== Loading ===== */
+  .link-btn {
+    background: none;
+    border: none;
+    color: var(--accent);
+    font-size: 13px;
+    cursor: pointer;
+    font-family: inherit;
+    padding: 0;
+    text-decoration: underline;
+    text-underline-offset: 3px;
+  }
+  .link-btn:hover { opacity: .75; }
+  .success-msg {
+    background: #0D2B1A;
+    border: 1px solid #1A5C35;
+    color: var(--success);
+    border-radius: var(--radius-sm);
+    padding: 10px 14px;
+    font-size: 13px;
+    margin-bottom: 1rem;
+  }
   .loading-overlay {
     position: fixed; inset: 0;
     background: var(--bg);
@@ -698,7 +799,9 @@
 
 <!-- ===== Login ===== -->
 <div id="login-screen" class="hidden">
-  <div class="login-card">
+
+  <!-- ログインカード -->
+  <div class="login-card" id="login-card">
     <div class="login-logo">
       <div class="login-logo-icon">🏗</div>
       <div>
@@ -718,7 +821,65 @@
       <input type="password" id="login-pass" placeholder="••••••••" autocomplete="current-password">
     </div>
     <button class="btn-primary" id="login-btn" onclick="doLogin()">ログイン</button>
+    <div style="text-align:center; margin-top:1.25rem;">
+      <button class="link-btn" onclick="showPanel('reset-card')">パスワードをお忘れですか？</button>
+    </div>
   </div>
+
+  <!-- パスワードリセット（メール送信）カード -->
+  <div class="login-card hidden" id="reset-card">
+    <div class="login-logo">
+      <div class="login-logo-icon">🏗</div>
+      <div>
+        <div class="login-logo-text">現場管理</div>
+        <div class="login-logo-sub">Genba Kanri System</div>
+      </div>
+    </div>
+    <h1 class="login-title">パスワード再設定</h1>
+    <p class="login-subtitle">登録済みのメールアドレスにリセットリンクを送ります</p>
+    <div class="error-msg" id="reset-error"></div>
+    <div class="success-msg hidden" id="reset-success">リセットメールを送信しました。メールをご確認ください。</div>
+    <div class="field">
+      <label>メールアドレス</label>
+      <input type="email" id="reset-email" placeholder="you@example.com" autocomplete="email">
+    </div>
+    <button class="btn-primary" id="reset-btn" onclick="doResetEmail()">リセットメールを送信</button>
+    <div style="text-align:center; margin-top:1.25rem;">
+      <button class="link-btn" onclick="showPanel('login-card')">← ログインに戻る</button>
+    </div>
+  </div>
+
+  <!-- パスワード変更（ログイン後）カード -->
+  <div class="login-card hidden" id="change-card">
+    <div class="login-logo">
+      <div class="login-logo-icon">🏗</div>
+      <div>
+        <div class="login-logo-text">現場管理</div>
+        <div class="login-logo-sub">Genba Kanri System</div>
+      </div>
+    </div>
+    <h1 class="login-title">パスワード変更</h1>
+    <p class="login-subtitle">現在のパスワードで認証してから新しいパスワードに変更します</p>
+    <div class="error-msg" id="change-error"></div>
+    <div class="success-msg hidden" id="change-success">パスワードを変更しました。</div>
+    <div class="field">
+      <label>現在のパスワード</label>
+      <input type="password" id="change-current" placeholder="••••••••">
+    </div>
+    <div class="field">
+      <label>新しいパスワード</label>
+      <input type="password" id="change-new" placeholder="••••••••（6文字以上）">
+    </div>
+    <div class="field">
+      <label>新しいパスワード（確認）</label>
+      <input type="password" id="change-confirm" placeholder="••••••••">
+    </div>
+    <button class="btn-primary" id="change-btn" onclick="doChangePassword()">パスワードを変更する</button>
+    <div style="text-align:center; margin-top:1.25rem;">
+      <button class="link-btn" onclick="closeChangePanel()">← キャンセル</button>
+    </div>
+  </div>
+
 </div>
 
 <!-- ===== App ===== -->
@@ -731,6 +892,9 @@
     </div>
     <div class="app-header-right">
       <span class="user-badge" id="user-email-badge"></span>
+      <button class="btn-icon" onclick="openChangePanel()">
+        <span>パスワード変更</span>
+      </button>
       <button class="btn-icon" onclick="doLogout()">
         <span>ログアウト</span>
       </button>
@@ -738,31 +902,6 @@
   </header>
 
   <main class="app-main">
-
-    <!-- サマリー -->
-    <div class="summary-grid">
-      <div class="summary-card">
-        <div class="summary-label">現場数</div>
-        <div><span class="summary-value" id="sum-count">0</span><span class="summary-unit">件</span></div>
-        <div class="summary-filter" id="sum-month-label">—</div>
-      </div>
-      <div class="summary-card">
-        <div class="summary-label">合計金額</div>
-        <div><span class="summary-value" id="sum-amount">0</span><span class="summary-unit">円</span></div>
-        <div class="summary-filter" id="sum-month-label2">—</div>
-      </div>
-    </div>
-
-    <!-- フィルター＆エクスポート -->
-    <div class="filter-bar">
-      <div class="filter-bar-left">
-        <select class="month-select" id="month-select" onchange="onMonthChange()"></select>
-        <span class="record-count" id="record-count"></span>
-      </div>
-      <button class="btn-excel" onclick="exportExcel()">
-        <span>↓</span> Excelエクスポート
-      </button>
-    </div>
 
     <!-- 登録フォーム -->
     <div class="section">
@@ -791,6 +930,28 @@
       </div>
     </div>
 
+    <!-- サマリー -->
+    <div class="summary-grid">
+      <div class="summary-card">
+        <div class="summary-label">現場数</div>
+        <div><span class="summary-value" id="sum-count">0</span><span class="summary-unit">件</span></div>
+        <div class="summary-filter" id="sum-month-label">—</div>
+      </div>
+      <div class="summary-card">
+        <div class="summary-label">合計金額</div>
+        <div><span class="summary-value" id="sum-amount">0</span><span class="summary-unit">円</span></div>
+        <div class="summary-filter" id="sum-month-label2">—</div>
+      </div>
+    </div>
+
+    <!-- 月フィルター -->
+    <div class="filter-bar">
+      <div class="filter-bar-left">
+        <select class="month-select" id="month-select" onchange="onMonthChange()"></select>
+        <span class="record-count" id="record-count"></span>
+      </div>
+    </div>
+
     <!-- テーブル -->
     <div class="table-section">
       <div class="table-wrapper">
@@ -811,6 +972,13 @@
           <div>この月のデータはありません</div>
         </div>
       </div>
+    </div>
+
+    <!-- エクスポート -->
+    <div style="margin-top: 1rem; display: flex; justify-content: flex-end;">
+      <button class="btn-excel" onclick="exportExcel()">
+        <span>↓</span> Excelエクスポート
+      </button>
     </div>
 
   </main>
