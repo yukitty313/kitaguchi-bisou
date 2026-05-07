@@ -295,11 +295,11 @@
   /* ---- Render table ---- */
   function renderTable() {
     const filtered = getFiltered();
-    const tbody = document.getElementById('records-tbody');
+    const list  = document.getElementById('records-list');
     const empty = document.getElementById('empty-state');
 
     if (filtered.length === 0) {
-      tbody.innerHTML = '';
+      list.innerHTML = '';
       empty.classList.remove('hidden');
       document.getElementById('record-count').textContent = '0件';
       return;
@@ -308,20 +308,28 @@
     document.getElementById('record-count').textContent = filtered.length + '件';
 
     filtered.sort((a, b) => b.date.localeCompare(a.date));
-    tbody.innerHTML = filtered.map(r => {
-      const compName = r.companyId && allCompanies[r.companyId] ? esc(allCompanies[r.companyId].name) : '-';
+    list.innerHTML = filtered.map(r => {
+      const compName = r.companyId && allCompanies[r.companyId] ? esc(allCompanies[r.companyId].name) : '';
+      const compBadge = compName ? `<span class="record-company">${compName}</span>` : '';
+      const noteEl    = r.note    ? `<span class="record-note">${esc(r.note)}</span>` : '';
       return `
-      <tr>
-        <td class="td-date">${formatDate(r.date)}</td>
-        <td class="td-name">${esc(r.name)}</td>
-        <td class="td-company">${compName}</td>
-        <td class="td-amount">${formatAmount(r.amount)}</td>
-        <td class="td-note">${esc(r.note || '-')}</td>
-        <td class="td-actions">
-          <button class="btn-edit" onclick="startEdit('${r.id}')">編集</button>
-          <button class="btn-del"  onclick="deleteRecord('${r.id}')">削除</button>
-        </td>
-      </tr>`;
+      <li class="record-card">
+        <div class="record-card-row1">
+          <span class="record-name">${esc(r.name)}</span>
+          <span class="record-amount">${formatAmount(r.amount)}</span>
+        </div>
+        <div class="record-card-row2">
+          <div class="record-meta">
+            <span class="record-date">${formatDate(r.date)}</span>
+            ${compBadge}
+            ${noteEl}
+          </div>
+          <div class="record-actions">
+            <button class="btn-edit" onclick="startEdit('${r.id}')">編集</button>
+            <button class="btn-del"  onclick="deleteRecord('${r.id}')">削除</button>
+          </div>
+        </div>
+      </li>`;
     }).join('');
   }
 
@@ -379,9 +387,10 @@
     document.getElementById('f-company').value = r.companyId || '';
     document.getElementById('f-amount').value  = r.amount;
     document.getElementById('f-note').value    = r.note || '';
-    document.getElementById('form-title-label').textContent = '編集中';
-    document.getElementById('submit-btn').textContent       = '更新する';
-    document.getElementById('cancel-btn').style.display     = 'block';
+    document.getElementById('form-title-label').innerHTML = '編集中 <span class="edit-badge">編集モード</span>';
+    document.getElementById('submit-btn').textContent      = '更新する';
+    document.getElementById('cancel-btn').style.display    = 'block';
+    document.querySelector('.section').classList.add('editing');
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
@@ -397,6 +406,7 @@
     document.getElementById('form-title-label').textContent = '新規登録';
     document.getElementById('submit-btn').textContent       = '登録する';
     document.getElementById('cancel-btn').style.display     = 'none';
+    document.querySelector('.section').classList.remove('editing');
   }
 
   /* ---- Delete ---- */
@@ -785,35 +795,101 @@
   }
   .btn-cancel:hover { color: var(--text); }
 
-  /* ===== Table ===== */
-  .table-section { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-md); overflow: hidden; }
-  .table-wrapper { overflow-x: auto; }
-  table { width: 100%; border-collapse: collapse; }
-  th {
-    text-align: left;
-    padding: 10px 14px;
+  /* ===== 編集モード ===== */
+  .section.editing {
+    background: #FFFBEB;
+    border: 2px solid #F59E0B;
+  }
+  .section.editing .section-title {
+    color: #B45309;
+    border-bottom-color: #FDE68A;
+  }
+  .edit-badge {
+    display: inline-block;
+    background: #FDE68A;
+    color: #92400E;
     font-size: 11px;
     font-weight: 700;
-    color: var(--muted);
-    letter-spacing: .05em;
-    text-transform: uppercase;
-    border-bottom: 1px solid var(--border);
-    white-space: nowrap;
-    background: var(--bg);
+    padding: 2px 8px;
+    border-radius: 99px;
+    margin-left: 8px;
+    vertical-align: middle;
+    letter-spacing: .03em;
   }
-  td {
+
+  /* ===== Record Cards (スマホ対応) ===== */
+  .table-section { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-md); overflow: hidden; }
+  .table-head { display: flex; align-items: center; justify-content: space-between; padding: 10px 14px; border-bottom: 1px solid var(--border); }
+  .record-list { list-style: none; }
+  .record-card {
     padding: 12px 14px;
     border-bottom: 1px solid var(--border);
-    font-size: 13px;
-    vertical-align: middle;
+    transition: background .12s;
   }
-  tr:last-child td { border-bottom: none; }
-  tr:hover td { background: var(--surface2); }
-  .td-date { font-family: var(--font-mono); font-size: 12px; color: var(--muted); white-space: nowrap; }
-  .td-name { font-weight: 600; max-width: 180px; }
-  .td-amount { font-family: var(--font-mono); font-size: 13px; font-weight: 600; white-space: nowrap; text-align: right; }
-  .td-note { color: var(--muted); max-width: 140px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .td-actions { white-space: nowrap; text-align: right; }
+  .record-card:last-child { border-bottom: none; }
+  .record-card:hover { background: var(--surface2); }
+  .record-card-row1 {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 8px;
+    margin-bottom: 4px;
+  }
+  .record-name {
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--text);
+    flex: 1;
+    min-width: 0;
+  }
+  .record-amount {
+    font-size: 14px;
+    font-weight: 700;
+    color: var(--accent);
+    white-space: nowrap;
+    font-family: var(--font-mono);
+    flex-shrink: 0;
+  }
+  .record-card-row2 {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 6px;
+  }
+  .record-meta {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+    flex: 1;
+    min-width: 0;
+  }
+  .record-date {
+    font-size: 12px;
+    color: var(--muted);
+    font-family: var(--font-mono);
+    white-space: nowrap;
+  }
+  .record-company {
+    font-size: 12px;
+    color: var(--surface);
+    background: var(--muted);
+    padding: 1px 7px;
+    border-radius: 99px;
+    white-space: nowrap;
+    max-width: 120px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .record-note {
+    font-size: 12px;
+    color: var(--muted);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    max-width: 160px;
+  }
+  .record-actions { display: flex; gap: 5px; flex-shrink: 0; }
   .btn-edit, .btn-del {
     border: 1px solid var(--border);
     background: none;
@@ -823,8 +899,9 @@
     cursor: pointer;
     font-family: inherit;
     transition: background .12s;
+    white-space: nowrap;
   }
-  .btn-edit { color: var(--accent); margin-right: 4px; }
+  .btn-edit { color: var(--accent); }
   .btn-edit:hover { background: var(--accent-bg); border-color: var(--accent-bd); }
   .btn-del  { color: var(--danger); }
   .btn-del:hover { background: var(--danger-bg); border-color: #FECACA; }
@@ -1105,26 +1182,12 @@
       </div>
     </div>
 
-    <!-- テーブル -->
+    <!-- 一覧 -->
     <div class="table-section">
-      <div class="table-wrapper">
-        <table>
-          <thead>
-            <tr>
-              <th>日付</th>
-              <th>現場名</th>
-              <th>会社名</th>
-              <th style="text-align:right">金額</th>
-              <th>備考</th>
-              <th></th>
-            </tr>
-          </thead>
-          <tbody id="records-tbody"></tbody>
-        </table>
-        <div class="empty-state hidden" id="empty-state">
-          <div class="empty-icon">📋</div>
-          <div>この月のデータはありません</div>
-        </div>
+      <ul class="record-list" id="records-list"></ul>
+      <div class="empty-state hidden" id="empty-state">
+        <div class="empty-icon">📋</div>
+        <div>この月のデータはありません</div>
       </div>
     </div>
 
