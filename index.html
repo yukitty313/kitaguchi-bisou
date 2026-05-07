@@ -276,8 +276,7 @@
   };
 
   window.deleteCompany = function(id) {
-    if (!confirm('この会社を削除しますか？
-登録済みデータの会社名表示に影響する場合があります。')) return;
+    if (!confirm('この会社を削除しますか？\n登録済みデータの会社名表示に影響する場合があります。')) return;
     remove(ref(db, 'companies/' + id))
       .then(() => showToast('削除しました'))
       .catch(() => showToast('削除に失敗しました'));
@@ -310,14 +309,14 @@
 
     filtered.sort((a, b) => b.date.localeCompare(a.date));
     tbody.innerHTML = filtered.map(r => {
-      const compName = r.companyId && allCompanies[r.companyId] ? esc(allCompanies[r.companyId].name) : '—';
+      const compName = r.companyId && allCompanies[r.companyId] ? esc(allCompanies[r.companyId].name) : '-';
       return `
       <tr>
         <td class="td-date">${formatDate(r.date)}</td>
         <td class="td-name">${esc(r.name)}</td>
         <td class="td-company">${compName}</td>
         <td class="td-amount">${formatAmount(r.amount)}</td>
-        <td class="td-note">${esc(r.note || '—')}</td>
+        <td class="td-note">${esc(r.note || '-')}</td>
         <td class="td-actions">
           <button class="btn-edit" onclick="startEdit('${r.id}')">編集</button>
           <button class="btn-del"  onclick="deleteRecord('${r.id}')">削除</button>
