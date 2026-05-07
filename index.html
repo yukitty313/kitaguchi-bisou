@@ -38,7 +38,7 @@
   onAuthStateChanged(auth, user => {
     document.getElementById('loading').style.display = 'none';
     if (user) {
-      document.getElementById('user-email-badge').textContent = user.email;
+      const badge = document.getElementById('user-email-badge'); if (badge) badge.textContent = user.email;
       document.getElementById('login-screen').classList.add('hidden');
       document.getElementById('app-screen').style.display = 'block';
       initApp();
@@ -1181,6 +1181,7 @@
       </div>
     </div>
     <div class="app-header-row2">
+      <span id="user-email-badge" style="display:none"></span>
       <button class="btn-icon" onclick="openCompanyModal()">会社管理</button>
       <button class="btn-icon" onclick="openChangePanel()">パスワード変更</button>
       <button class="btn-icon" onclick="doLogout()">ログアウト</button>
