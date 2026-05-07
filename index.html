@@ -29,8 +29,9 @@
   let allRecords   = {};
   let allCompanies = {};  // { id: { name } }
   let editingId    = null;
-  let currentMonth = '';
-  let unsubDb      = null;
+  let currentMonth   = '';
+  let currentCompany = '';
+  let unsubDb        = null;
   let unsubComp    = null;
 
   /* ---- Auth state ---- */
@@ -203,11 +204,16 @@
     updateSummary();
   };
 
+  window.onCompanyFilter = function() {
+    currentCompany = document.getElementById('company-filter').value;
+    renderTable();
+    updateSummary();
+  };
+
   function updateMonthLabels() {
     const [y, m] = currentMonth.split('-');
     const label = `${y}年${parseInt(m)}月`;
-    document.getElementById('sum-month-label').textContent  = label;
-    document.getElementById('sum-month-label2').textContent = label;
+    // サマリーラベルは月フィルターのselectで確認できるため省略
   }
 
   /* ---- Companies listener ---- */
@@ -221,19 +227,31 @@
   }
 
   function renderCompanySelect() {
-    const sel = document.getElementById('f-company');
-    if (!sel) return;
-    const current = sel.value;
-    sel.innerHTML = '<option value="">-- 会社を選択 --</option>';
-    Object.entries(allCompanies)
-      .sort((a, b) => a[1].name.localeCompare(b[1].name, 'ja'))
-      .forEach(([id, c]) => {
+    const formSel   = document.getElementById('f-company');
+    const filterSel = document.getElementById('company-filter');
+    const sorted = Object.entries(allCompanies).sort((a, b) => a[1].name.localeCompare(b[1].name, 'ja'));
+
+    if (formSel) {
+      const cur = formSel.value;
+      formSel.innerHTML = '<option value="">-- 会社を選択 --</option>';
+      sorted.forEach(([id, c]) => {
         const opt = document.createElement('option');
-        opt.value = id;
-        opt.textContent = c.name;
-        sel.appendChild(opt);
+        opt.value = id; opt.textContent = c.name;
+        formSel.appendChild(opt);
       });
-    if (current) sel.value = current;
+      if (cur) formSel.value = cur;
+    }
+
+    if (filterSel) {
+      const cur = filterSel.value;
+      filterSel.innerHTML = '<option value="">すべての会社</option>';
+      sorted.forEach(([id, c]) => {
+        const opt = document.createElement('option');
+        opt.value = id; opt.textContent = c.name;
+        filterSel.appendChild(opt);
+      });
+      if (cur) filterSel.value = cur;
+    }
   }
 
   function renderCompanyList() {
@@ -344,7 +362,8 @@
   function getFiltered() {
     return Object.entries(allRecords)
       .map(([id, v]) => ({ id, ...v }))
-      .filter(r => r.date && r.date.startsWith(currentMonth));
+      .filter(r => r.date && r.date.startsWith(currentMonth))
+      .filter(r => !currentCompany || r.companyId === currentCompany);
   }
 
   /* ---- Submit ---- */
@@ -612,8 +631,8 @@
   /* ===== App Screen ===== */
   #app-screen { display: none; }
   .app-header {
-    background: var(--surface);
-    border-bottom: 1.5px solid var(--border);
+    background: #DBEAFE;
+    border-bottom: 1.5px solid #93C5FD;
     padding: .875rem 1.25rem;
     display: flex;
     align-items: center;
@@ -630,7 +649,7 @@
     display: flex; align-items: center; justify-content: center;
     color: #fff; font-size: 16px; flex-shrink: 0;
   }
-  .app-header-title { font-size: 15px; font-weight: 700; letter-spacing: -.02em; }
+  .app-header-title { font-size: 15px; font-weight: 700; letter-spacing: -.02em; color: #1D4ED8; }
   .app-header-right { display: flex; align-items: center; gap: 8px; }
   .user-badge {
     font-size: 12px;
@@ -639,8 +658,8 @@
   }
   @media (min-width: 480px) { .user-badge { display: block; } }
   .btn-icon {
-    border: 1px solid var(--border);
-    background: var(--surface);
+    border: 1px solid #93C5FD;
+    background: rgba(255,255,255,.6);
     border-radius: var(--radius-sm);
     padding: 6px 12px;
     font-size: 12px;
@@ -650,7 +669,7 @@
     font-family: inherit;
     transition: background .15s, color .15s;
   }
-  .btn-icon:hover { background: var(--bg); color: var(--text); }
+  .btn-icon:hover { background: #fff; color: var(--accent); }
 
   .app-main {
     max-width: 800px;
@@ -669,12 +688,16 @@
     background: var(--surface);
     border: 1px solid var(--border);
     border-radius: var(--radius-md);
-    padding: 1rem 1.25rem;
+    padding: .625rem 1rem;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
   }
-  .summary-label { font-size: 11px; font-weight: 600; color: var(--muted); letter-spacing: .05em; text-transform: uppercase; margin-bottom: 8px; }
-  .summary-value { font-size: 28px; font-weight: 700; letter-spacing: -.03em; font-family: var(--font-mono); }
-  .summary-unit  { font-size: 13px; font-weight: 400; color: var(--muted); margin-left: 3px; }
-  .summary-filter { font-size: 11px; color: var(--muted); margin-top: 4px; }
+  .summary-label { font-size: 11px; font-weight: 600; color: var(--muted); letter-spacing: .05em; text-transform: uppercase; white-space: nowrap; }
+  .summary-value { font-size: 20px; font-weight: 700; letter-spacing: -.02em; font-family: var(--font-mono); }
+  .summary-unit  { font-size: 12px; font-weight: 400; color: var(--muted); margin-left: 2px; }
+  .summary-filter { font-size: 11px; color: var(--muted); }
 
   /* ===== Month Filter ===== */
   .filter-bar {
@@ -699,6 +722,8 @@
     font-family: inherit;
   }
   select.month-select:focus { border-color: var(--accent); }
+  select.company-filter { padding: 7px 10px; border: 1.5px solid var(--border); border-radius: var(--radius-sm); font-size: 13px; color: var(--text); background: var(--surface); cursor: pointer; outline: none; font-family: inherit; max-width: 140px; }
+  select.company-filter:focus { border-color: var(--accent); }
   .record-count { font-size: 13px; color: var(--muted); }
   .btn-excel {
     border: 1px solid var(--border);
@@ -871,9 +896,9 @@
     white-space: nowrap;
   }
   .record-company {
-    font-size: 12px;
-    color: var(--surface);
-    background: var(--muted);
+    font-size: 11px;
+    color: #fff;
+    background: var(--accent);
     padding: 1px 7px;
     border-radius: 99px;
     white-space: nowrap;
@@ -1165,19 +1190,20 @@
       <div class="summary-card">
         <div class="summary-label">現場数</div>
         <div><span class="summary-value" id="sum-count">0</span><span class="summary-unit">件</span></div>
-        <div class="summary-filter" id="sum-month-label">—</div>
       </div>
       <div class="summary-card">
         <div class="summary-label">合計金額</div>
         <div><span class="summary-value" id="sum-amount">0</span><span class="summary-unit">円</span></div>
-        <div class="summary-filter" id="sum-month-label2">—</div>
       </div>
     </div>
 
-    <!-- 月フィルター -->
+    <!-- フィルター -->
     <div class="filter-bar">
       <div class="filter-bar-left">
         <select class="month-select" id="month-select" onchange="onMonthChange()"></select>
+        <select class="company-filter" id="company-filter" onchange="onCompanyFilter()">
+          <option value="">すべての会社</option>
+        </select>
         <span class="record-count" id="record-count"></span>
       </div>
     </div>
