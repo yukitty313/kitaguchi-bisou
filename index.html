@@ -643,41 +643,59 @@
     border-bottom: none;
     padding: 0 1.25rem;
     display: flex;
-    align-items: stretch;
-    justify-content: space-between;
+    flex-direction: column;
     position: sticky;
     top: 0;
     z-index: 100;
     box-shadow: var(--shadow-md);
   }
-  .app-header-left {
+  .app-header-row1 {
     display: flex;
     align-items: center;
-    gap: 0;
+    padding: 11px 0 9px;
     border-left: 4px solid var(--sky);
     padding-left: 14px;
-    margin: 12px 0;
+    margin-left: -1.25rem;
+    padding-right: 0;
   }
   .app-header-title-wrap { display: flex; flex-direction: column; gap: 1px; }
-  .app-header-title { font-size: 16px; font-weight: 700; letter-spacing: -.01em; color: #fff; line-height: 1.2; }
-  .app-header-sub { font-size: 9px; font-weight: 600; letter-spacing: .14em; color: var(--sky); text-transform: uppercase; }
-  .app-header-right { display: flex; align-items: center; gap: 6px; }
-  .user-badge { font-size: 11px; color: rgba(255,255,255,.45); display: none; }
-  @media (min-width: 480px) { .user-badge { display: block; } }
+  .app-header-title { font-size: 15px; font-weight: 700; letter-spacing: -.01em; color: #fff; line-height: 1.2; white-space: nowrap; }
+  .app-header-sub { font-size: 8px; font-weight: 600; letter-spacing: .14em; color: var(--sky); text-transform: uppercase; }
+  .app-header-row2 {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 0 0 9px;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+  }
+  .app-header-row2::-webkit-scrollbar { display: none; }
+  .user-badge {
+    font-size: 11px;
+    color: rgba(255,255,255,.5);
+    white-space: nowrap;
+    flex-shrink: 0;
+    border: 1px solid rgba(56,189,248,.2);
+    background: rgba(56,189,248,.07);
+    border-radius: var(--radius-sm);
+    padding: 5px 10px;
+  }
   .btn-icon {
     border: 1px solid rgba(56,189,248,.3);
     background: rgba(56,189,248,.1);
     border-radius: var(--radius-sm);
-    padding: 6px 11px;
+    padding: 5px 11px;
     font-size: 12px;
-    color: rgba(255,255,255,.8);
+    color: rgba(255,255,255,.85);
     cursor: pointer;
     display: flex; align-items: center; gap: 5px;
     font-family: inherit;
     transition: background .15s, color .15s;
     white-space: nowrap;
+    flex-shrink: 0;
   }
-  .btn-icon:hover { background: rgba(56,189,248,.22); color: #fff; }
+  .btn-icon:hover { background: rgba(56,189,248,.25); color: #fff; }
 
   .app-main {
     max-width: 800px;
@@ -693,8 +711,8 @@
     margin-bottom: 1.25rem;
   }
   .summary-card {
-    background: var(--navy);
-    border: none;
+    background: #fff;
+    border: 1px solid var(--border);
     border-radius: var(--radius-md);
     padding: .75rem 1rem;
     display: flex;
@@ -703,9 +721,9 @@
     gap: 8px;
     box-shadow: var(--shadow-sm);
   }
-  .summary-label { font-size: 10px; font-weight: 600; color: rgba(255,255,255,.55); letter-spacing: .07em; text-transform: uppercase; white-space: nowrap; }
-  .summary-value { font-size: 20px; font-weight: 700; letter-spacing: -.02em; font-family: var(--font-mono); color: #fff; }
-  .summary-unit  { font-size: 12px; font-weight: 400; color: rgba(255,255,255,.55); margin-left: 2px; }
+  .summary-label { font-size: 10px; font-weight: 600; color: var(--muted); letter-spacing: .07em; text-transform: uppercase; white-space: nowrap; }
+  .summary-value { font-size: 20px; font-weight: 700; letter-spacing: -.02em; font-family: var(--font-mono); color: var(--navy); }
+  .summary-unit  { font-size: 12px; font-weight: 400; color: var(--muted); margin-left: 2px; }
   .summary-filter { font-size: 11px; color: var(--muted); }
 
   /* ===== Month Filter ===== */
@@ -1155,23 +1173,17 @@
 <div id="app-screen">
 
   <header class="app-header">
-    <div class="app-header-left">
+    <div class="app-header-row1">
       <div class="app-header-title-wrap">
-        <div class="app-header-title">現場管理</div>
-        <div class="app-header-sub">KITAGUCHI  BISOU</div>
+        <div class="app-header-title">現場管理&nbsp;&nbsp;KITAGUCHI&nbsp;&nbsp;BISOU</div>
+        <div class="app-header-sub">Genba Kanri System</div>
       </div>
     </div>
-    <div class="app-header-right">
+    <div class="app-header-row2">
       <span class="user-badge" id="user-email-badge"></span>
-      <button class="btn-icon" onclick="openCompanyModal()">
-        <span>会社管理</span>
-      </button>
-      <button class="btn-icon" onclick="openChangePanel()">
-        <span>パスワード変更</span>
-      </button>
-      <button class="btn-icon" onclick="doLogout()">
-        <span>ログアウト</span>
-      </button>
+      <button class="btn-icon" onclick="openCompanyModal()">会社管理</button>
+      <button class="btn-icon" onclick="openChangePanel()">パスワード変更</button>
+      <button class="btn-icon" onclick="doLogout()">ログアウト</button>
     </div>
   </header>
 
@@ -1193,7 +1205,7 @@
         </div>
         <div class="form-field span2">
           <label>現場名</label>
-          <input type="text" id="f-name" placeholder="例：〇〇橋 近接点検">
+          <input type="text" id="f-name" placeholder="例：〇〇戸建て">
         </div>
         <div class="form-field">
           <label>金額（円）</label>
