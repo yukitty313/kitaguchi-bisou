@@ -4,11 +4,12 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>現場管理アプリ</title>
+<script src="https://cdn.jsdelivr.net/npm/xlsx-js-style@1.2.0/dist/xlsx.bundle.js"></script>
 <script type="module">
   import { initializeApp } from 'https://cdn.jsdelivr.net/npm/firebase@10.12.0/app/+esm';
   import { getAuth, signInWithEmailAndPassword, signOut, onAuthStateChanged, sendPasswordResetEmail, reauthenticateWithCredential, EmailAuthProvider, updatePassword } from 'https://cdn.jsdelivr.net/npm/firebase@10.12.0/auth/+esm';
   import { getDatabase, ref, push, update, remove, onValue } from 'https://cdn.jsdelivr.net/npm/firebase@10.12.0/database/+esm';
-  import * as XLSX from 'https://cdn.jsdelivr.net/npm/xlsx-js-style@1.2.0/+esm';
+  const XLSX = window.XLSX;
 
   const firebaseConfig = {
     apiKey:            "AIzaSyCSn1ziRG7YfUrccqNAZHW9SUG-R7LdqWk",
@@ -29,6 +30,7 @@
   let editingId    = null;
   let currentMonth   = '';
   let currentCompany = '';
+  let currentStaff   = '';
   let unsubDb        = null;
   let unsubComp    = null;
 
@@ -225,6 +227,12 @@
     updateSummary();
   };
 
+  window.onStaffFilter = function() {
+    currentStaff = document.getElementById('staff-filter').value;
+    renderTable();
+    updateSummary();
+  };
+
   function updateMonthLabels() {
     const [y, m] = currentMonth.split('-');
     const label = `${y}年${parseInt(m)}月`;
@@ -318,9 +326,22 @@
     const dbRef = ref(db, 'records');
     unsubDb = onValue(dbRef, snap => {
       allRecords = snap.val() || {};
+      renderStaffFilterOptions();
       renderTable();
       updateSummary();
     });
+  }
+
+  function renderStaffFilterOptions() {
+    const sel = document.getElementById('staff-filter');
+    if (!sel) return;
+    const cur = sel.value;
+    const names = Array.from(new Set(
+      Object.values(allRecords).map(r => (r.staff || '').trim()).filter(Boolean)
+    )).sort((a, b) => a.localeCompare(b, 'ja'));
+    sel.innerHTML = '<option value="">すべての担当者</option>' +
+      names.map(n => `<option value="${esc(n)}">${esc(n)}</option>`).join('');
+    if (names.includes(cur)) sel.value = cur;
   }
 
   function renderTable() {
@@ -376,7 +397,8 @@
     return Object.entries(allRecords)
       .map(([id, v]) => ({ id, ...v }))
       .filter(r => r.date && r.date.startsWith(currentMonth))
-      .filter(r => !currentCompany || r.companyId === currentCompany);
+      .filter(r => !currentCompany || r.companyId === currentCompany)
+      .filter(r => !currentStaff || (r.staff || '') === currentStaff);
   }
 
   window.submitRecord = function() {
@@ -543,6 +565,7 @@
   }
 
   window.exportExcel = function() {
+    if (!XLSX) { showToast('Excelライブラリの読み込みに失敗しました。更新ボタンを押してからもう一度お試しください'); return; }
     const filtered = getFiltered();
     if (filtered.length === 0) { showToast('エクスポートするデータがありません'); return; }
     filtered.sort((a, b) => a.date.localeCompare(b.date));
@@ -557,6 +580,7 @@
   };
 
   window.exportExcelByCompany = function() {
+    if (!XLSX) { showToast('Excelライブラリの読み込みに失敗しました。更新ボタンを押してからもう一度お試しください'); return; }
     const rows = Object.entries(allRecords)
       .map(([id, v]) => ({ id, ...v }))
       .filter(r => r.date && r.date.startsWith(currentMonth));
@@ -578,6 +602,7 @@
   };
 
   window.exportExcelByStaff = function() {
+    if (!XLSX) { showToast('Excelライブラリの読み込みに失敗しました。更新ボタンを押してからもう一度お試しください'); return; }
     const rows = Object.entries(allRecords)
       .map(([id, v]) => ({ id, ...v }))
       .filter(r => r.date && r.date.startsWith(currentMonth));
@@ -1340,6 +1365,9 @@
         <select class="month-select" id="month-select" onchange="onMonthChange()"></select>
         <select class="company-filter" id="company-filter" onchange="onCompanyFilter()">
           <option value="">すべての会社</option>
+        </select>
+        <select class="company-filter" id="staff-filter" onchange="onStaffFilter()">
+          <option value="">すべての担当者</option>
         </select>
         <span class="record-count" id="record-count"></span>
       </div>
