@@ -891,6 +891,28 @@
     transition: opacity .15s;
   }
   .btn-excel:hover { opacity: .85; }
+  .export-actions {
+    margin-top: 1rem;
+    display: flex;
+    justify-content: flex-end;
+    gap: 8px;
+    flex-wrap: wrap;
+  }
+  @media (max-width: 480px) {
+    .export-actions {
+      flex-wrap: nowrap;
+      justify-content: flex-start;
+      overflow-x: auto;
+      -webkit-overflow-scrolling: touch;
+      padding-bottom: 4px;
+    }
+    .export-actions .btn-excel {
+      flex-shrink: 0;
+      padding: 7px 10px;
+      font-size: 11px;
+      white-space: nowrap;
+    }
+  }
   .section {
     background: var(--surface);
     border: 1px solid var(--border);
@@ -1381,7 +1403,7 @@
       </div>
     </div>
 
-    <div style="margin-top: 1rem; display: flex; justify-content: flex-end; gap: 8px; flex-wrap: wrap;">
+    <div class="export-actions">
       <button class="btn-excel" onclick="exportExcelByStaff()" style="background:#7C3AED;">
         <span>↓</span> 担当者ごとに出力
       </button>
