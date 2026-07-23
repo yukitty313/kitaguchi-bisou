@@ -8,7 +8,7 @@
   import { initializeApp } from 'https://cdn.jsdelivr.net/npm/firebase@10.12.0/app/+esm';
   import { getAuth, signInWithEmailAndPassword, signOut, onAuthStateChanged, sendPasswordResetEmail, reauthenticateWithCredential, EmailAuthProvider, updatePassword } from 'https://cdn.jsdelivr.net/npm/firebase@10.12.0/auth/+esm';
   import { getDatabase, ref, push, update, remove, onValue } from 'https://cdn.jsdelivr.net/npm/firebase@10.12.0/database/+esm';
-  import * as XLSX from 'https://cdn.jsdelivr.net/npm/xlsx@0.18.5/+esm';
+  import * as XLSX from 'https://cdn.jsdelivr.net/npm/xlsx-js-style@1.2.0/+esm';
 
   const firebaseConfig = {
     apiKey:            "AIzaSyCSn1ziRG7YfUrccqNAZHW9SUG-R7LdqWk",
@@ -454,41 +454,75 @@
     if (filtered.length === 0) { showToast('エクスポートするデータがありません'); return; }
     filtered.sort((a, b) => a.date.localeCompare(b.date));
 
-    const [y, m] = currentMonth.split('-');
+    const total = filtered.reduce((s, r) => s + (Number(r.amount) || 0), 0);
+
+    const THIN      = { style: 'thin', color: { rgb: 'FFB7B7B7' } };
+    const BORDER    = { top: THIN, bottom: THIN, left: THIN, right: THIN };
+    const HEADER_S  = {
+      font: { bold: true, sz: 11, color: { rgb: 'FFFFFFFF' } },
+      fill: { patternType: 'solid', fgColor: { rgb: 'FF4472C4' } },
+      alignment: { horizontal: 'center', vertical: 'center' },
+      border: BORDER
+    };
+    const BAND_FILL = { patternType: 'solid', fgColor: { rgb: 'FFEDF1FA' } };
+    const cellStyle = (align, banded, numFmt) => ({
+      font: { sz: 11 },
+      alignment: { horizontal: align, vertical: 'center' },
+      border: BORDER,
+      ...(banded ? { fill: BAND_FILL } : {}),
+      ...(numFmt ? { numFmt } : {})
+    });
+    const TOTAL_S_LABEL = {
+      font: { bold: true, sz: 11 },
+      alignment: { horizontal: 'right', vertical: 'center' },
+      border: BORDER,
+      fill: { patternType: 'solid', fgColor: { rgb: 'FFD9E2F3' } }
+    };
+    const TOTAL_S_AMOUNT = {
+      font: { bold: true, sz: 11 },
+      alignment: { horizontal: 'right', vertical: 'center' },
+      border: BORDER,
+      fill: { patternType: 'solid', fgColor: { rgb: 'FFD9E2F3' } },
+      numFmt: '#,##0'
+    };
+    const TOTAL_S_BLANK = {
+      border: BORDER,
+      fill: { patternType: 'solid', fgColor: { rgb: 'FFD9E2F3' } }
+    };
+
+    const header = ['日付', '物件名', '金額', '担当者', '備考'];
+    const dataRows = filtered.map(r => [r.date, r.name, Number(r.amount), r.staff || '', r.note || '']);
+    const aoa = [header, ...dataRows, ['', '合計', total, '', '']];
+
+    const ws = XLSX.utils.aoa_to_sheet(aoa);
+    ws['!cols'] = [{ wch: 8 }, { wch: 38 }, { wch: 19 }, { wch: 12 }, { wch: 14 }];
+
+    const totalRowIdx = aoa.length - 1;
+    const colAligns = ['left', 'left', 'right', 'center', 'left'];
+
+    for (let R = 0; R < aoa.length; R++) {
+      for (let C = 0; C < header.length; C++) {
+        const addr = XLSX.utils.encode_cell({ r: R, c: C });
+        if (!ws[addr]) ws[addr] = { t: 's', v: '' };
+
+        if (R === 0) {
+          ws[addr].s = HEADER_S;
+        } else if (R === totalRowIdx) {
+          if (C === 1) ws[addr].s = TOTAL_S_LABEL;
+          else if (C === 2) ws[addr].s = TOTAL_S_AMOUNT;
+          else ws[addr].s = TOTAL_S_BLANK;
+        } else {
+          const banded = (R % 2 === 0);
+          ws[addr].s = cellStyle(colAligns[C], banded, C === 2 ? '#,##0' : undefined);
+        }
+      }
+    }
+
     const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, '実績');
 
-    const groups = {};
-    filtered.forEach(r => {
-      const compName = r.companyId && allCompanies[r.companyId] ? allCompanies[r.companyId].name : '未設定';
-      if (!groups[compName]) groups[compName] = [];
-      groups[compName].push(r);
-    });
-
-    Object.entries(groups).sort((a, b) => a[0].localeCompare(b[0], 'ja')).forEach(([compName, rows]) => {
-      const data = [
-        ['日付', '現場名', '会社名', '担当者', '金額（円）', '備考'],
-        ...rows.map(r => [r.date, r.name, compName, r.staff || '', Number(r.amount), r.note || '']),
-        ['', '合計', '', '', rows.reduce((s, r) => s + Number(r.amount||0), 0), '']
-      ];
-      const ws = XLSX.utils.aoa_to_sheet(data);
-      ws['!cols'] = [{ wch: 14 }, { wch: 28 }, { wch: 18 }, { wch: 14 }, { wch: 14 }, { wch: 28 }];
-      const sheetName = compName.slice(0, 31);
-      XLSX.utils.book_append_sheet(wb, ws, sheetName);
-    });
-
-    const allData = [
-      ['日付', '現場名', '会社名', '担当者', '金額（円）', '備考'],
-      ...filtered.map(r => {
-        const compName = r.companyId && allCompanies[r.companyId] ? allCompanies[r.companyId].name : '未設定';
-        return [r.date, r.name, compName, r.staff || '', Number(r.amount), r.note || ''];
-      }),
-      ['', '合計', '', '', filtered.reduce((s, r) => s + Number(r.amount||0), 0), '']
-    ];
-    const wsAll = XLSX.utils.aoa_to_sheet(allData);
-    wsAll['!cols'] = [{ wch: 14 }, { wch: 28 }, { wch: 18 }, { wch: 14 }, { wch: 14 }, { wch: 28 }];
-    XLSX.utils.book_append_sheet(wb, wsAll, '全社合計');
-
-    XLSX.writeFile(wb, `現場管理_${currentMonth}.xlsx`);
+    const compSuffix = currentCompany && allCompanies[currentCompany] ? `_${allCompanies[currentCompany].name}` : '';
+    XLSX.writeFile(wb, `実績_${currentMonth}${compSuffix}.xlsx`);
     showToast('Excelをダウンロードしました');
   };
 
