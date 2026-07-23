@@ -449,49 +449,45 @@
       .catch(() => showToast('削除に失敗しました'));
   };
 
-  window.exportExcel = function() {
-    const filtered = getFiltered();
-    if (filtered.length === 0) { showToast('エクスポートするデータがありません'); return; }
-    filtered.sort((a, b) => a.date.localeCompare(b.date));
+  const THIN      = { style: 'thin', color: { rgb: 'FFB7B7B7' } };
+  const BORDER    = { top: THIN, bottom: THIN, left: THIN, right: THIN };
+  const HEADER_S  = {
+    font: { bold: true, sz: 11, color: { rgb: 'FFFFFFFF' } },
+    fill: { patternType: 'solid', fgColor: { rgb: 'FF4472C4' } },
+    alignment: { horizontal: 'center', vertical: 'center' },
+    border: BORDER
+  };
+  const BAND_FILL = { patternType: 'solid', fgColor: { rgb: 'FFEDF1FA' } };
+  const cellStyle = (align, banded, numFmt) => ({
+    font: { sz: 11 },
+    alignment: { horizontal: align, vertical: 'center' },
+    border: BORDER,
+    ...(banded ? { fill: BAND_FILL } : {}),
+    ...(numFmt ? { numFmt } : {})
+  });
+  const TOTAL_S_LABEL = {
+    font: { bold: true, sz: 11 },
+    alignment: { horizontal: 'right', vertical: 'center' },
+    border: BORDER,
+    fill: { patternType: 'solid', fgColor: { rgb: 'FFD9E2F3' } }
+  };
+  const TOTAL_S_AMOUNT = {
+    font: { bold: true, sz: 11 },
+    alignment: { horizontal: 'right', vertical: 'center' },
+    border: BORDER,
+    fill: { patternType: 'solid', fgColor: { rgb: 'FFD9E2F3' } },
+    numFmt: '#,##0'
+  };
+  const TOTAL_S_BLANK = {
+    border: BORDER,
+    fill: { patternType: 'solid', fgColor: { rgb: 'FFD9E2F3' } }
+  };
 
-    const total = filtered.reduce((s, r) => s + (Number(r.amount) || 0), 0);
-
-    const THIN      = { style: 'thin', color: { rgb: 'FFB7B7B7' } };
-    const BORDER    = { top: THIN, bottom: THIN, left: THIN, right: THIN };
-    const HEADER_S  = {
-      font: { bold: true, sz: 11, color: { rgb: 'FFFFFFFF' } },
-      fill: { patternType: 'solid', fgColor: { rgb: 'FF4472C4' } },
-      alignment: { horizontal: 'center', vertical: 'center' },
-      border: BORDER
-    };
-    const BAND_FILL = { patternType: 'solid', fgColor: { rgb: 'FFEDF1FA' } };
-    const cellStyle = (align, banded, numFmt) => ({
-      font: { sz: 11 },
-      alignment: { horizontal: align, vertical: 'center' },
-      border: BORDER,
-      ...(banded ? { fill: BAND_FILL } : {}),
-      ...(numFmt ? { numFmt } : {})
-    });
-    const TOTAL_S_LABEL = {
-      font: { bold: true, sz: 11 },
-      alignment: { horizontal: 'right', vertical: 'center' },
-      border: BORDER,
-      fill: { patternType: 'solid', fgColor: { rgb: 'FFD9E2F3' } }
-    };
-    const TOTAL_S_AMOUNT = {
-      font: { bold: true, sz: 11 },
-      alignment: { horizontal: 'right', vertical: 'center' },
-      border: BORDER,
-      fill: { patternType: 'solid', fgColor: { rgb: 'FFD9E2F3' } },
-      numFmt: '#,##0'
-    };
-    const TOTAL_S_BLANK = {
-      border: BORDER,
-      fill: { patternType: 'solid', fgColor: { rgb: 'FFD9E2F3' } }
-    };
-
+  // rows: [{date, name, staff, amount, note}, ...] を「実績」様式の1シートに変換
+  function buildRecordSheet(rows) {
+    const total = rows.reduce((s, r) => s + (Number(r.amount) || 0), 0);
     const header = ['日付', '物件名', '金額', '担当者', '備考'];
-    const dataRows = filtered.map(r => [r.date, r.name, Number(r.amount), r.staff || '', r.note || '']);
+    const dataRows = rows.map(r => [r.date, r.name, Number(r.amount), r.staff || '', r.note || '']);
     const aoa = [header, ...dataRows, ['', '合計', total, '', '']];
 
     const ws = XLSX.utils.aoa_to_sheet(aoa);
@@ -517,13 +513,89 @@
         }
       }
     }
+    return ws;
+  }
 
+  // Excelのシート名として使えない文字を除去し、31文字に丸め、重複しないようにする
+  function safeSheetName(name, usedNames) {
+    let base = String(name || '未設定').replace(/[\\\/\?\*\[\]:]/g, '_').trim();
+    if (!base) base = '未設定';
+    base = base.slice(0, 31);
+    let result = base;
+    let i = 2;
+    while (usedNames.has(result)) {
+      const suffix = `(${i})`;
+      result = base.slice(0, 31 - suffix.length) + suffix;
+      i++;
+    }
+    usedNames.add(result);
+    return result;
+  }
+
+  function groupBy(rows, keyFn) {
+    const groups = {};
+    rows.forEach(r => {
+      const key = keyFn(r) || '未設定';
+      if (!groups[key]) groups[key] = [];
+      groups[key].push(r);
+    });
+    return groups;
+  }
+
+  window.exportExcel = function() {
+    const filtered = getFiltered();
+    if (filtered.length === 0) { showToast('エクスポートするデータがありません'); return; }
+    filtered.sort((a, b) => a.date.localeCompare(b.date));
+
+    const ws = buildRecordSheet(filtered);
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, '実績');
 
     const compSuffix = currentCompany && allCompanies[currentCompany] ? `_${allCompanies[currentCompany].name}` : '';
     XLSX.writeFile(wb, `実績_${currentMonth}${compSuffix}.xlsx`);
     showToast('Excelをダウンロードしました');
+  };
+
+  window.exportExcelByCompany = function() {
+    const rows = Object.entries(allRecords)
+      .map(([id, v]) => ({ id, ...v }))
+      .filter(r => r.date && r.date.startsWith(currentMonth));
+    if (rows.length === 0) { showToast('エクスポートするデータがありません'); return; }
+    rows.sort((a, b) => a.date.localeCompare(b.date));
+
+    const groups = groupBy(rows, r => r.companyId && allCompanies[r.companyId] ? allCompanies[r.companyId].name : '未設定');
+    const sortedKeys = Object.keys(groups).sort((a, b) => a.localeCompare(b, 'ja'));
+
+    const wb = XLSX.utils.book_new();
+    const used = new Set();
+    sortedKeys.forEach(key => {
+      const ws = buildRecordSheet(groups[key]);
+      XLSX.utils.book_append_sheet(wb, ws, safeSheetName(key, used));
+    });
+
+    XLSX.writeFile(wb, `実績_会社別_${currentMonth}.xlsx`);
+    showToast('会社ごとのExcelをダウンロードしました');
+  };
+
+  window.exportExcelByStaff = function() {
+    const rows = Object.entries(allRecords)
+      .map(([id, v]) => ({ id, ...v }))
+      .filter(r => r.date && r.date.startsWith(currentMonth));
+    if (rows.length === 0) { showToast('エクスポートするデータがありません'); return; }
+    rows.sort((a, b) => a.date.localeCompare(b.date));
+
+    const groups = groupBy(rows, r => r.staff || '未設定');
+    const sortedKeys = Object.keys(groups).sort((a, b) => a.localeCompare(b, 'ja'));
+
+    const wb = XLSX.utils.book_new();
+    const used = new Set();
+    sortedKeys.forEach(key => {
+      const ws = buildRecordSheet(groups[key]);
+      XLSX.utils.book_append_sheet(wb, ws, safeSheetName(key, used));
+    });
+
+    XLSX.writeFile(wb, `実績_担当者別_${currentMonth}.xlsx`);
+    showToast('担当者ごとのExcelをダウンロードしました');
   };
 
   function toDateStr(d) {
@@ -1281,7 +1353,13 @@
       </div>
     </div>
 
-    <div style="margin-top: 1rem; display: flex; justify-content: flex-end;">
+    <div style="margin-top: 1rem; display: flex; justify-content: flex-end; gap: 8px; flex-wrap: wrap;">
+      <button class="btn-excel" onclick="exportExcelByStaff()" style="background:#7C3AED;">
+        <span>↓</span> 担当者ごとに出力
+      </button>
+      <button class="btn-excel" onclick="exportExcelByCompany()" style="background:#0EA5E9;">
+        <span>↓</span> 会社ごとに出力
+      </button>
       <button class="btn-excel" onclick="exportExcel()">
         <span>↓</span> Excelエクスポート
       </button>
