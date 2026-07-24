@@ -402,7 +402,7 @@
   window.submitRecord = function() {
     const date   = document.getElementById('f-date').value;
     const name   = document.getElementById('f-name').value.trim();
-    const staff  = document.getElementById('f-staff').value.trim();
+    const staff  = document.getElementById('f-staff').value.trim() || '北口';
     const amount = document.getElementById('f-amount').value;
     const note   = document.getElementById('f-note').value.trim();
 
