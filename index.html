@@ -406,13 +406,15 @@
     const amount = document.getElementById('f-amount').value;
     const note   = document.getElementById('f-note').value.trim();
 
-    if (!date)   { showToast('日付を入力してください'); return; }
-    if (!name)   { showToast('現場名を入力してください'); return; }
-    if (!amount) { showToast('金額を入力してください'); return; }
+    const companyId = document.getElementById('f-company').value;
+
+    if (!companyId) { showToast('会社名を選択してください'); return; }
+    if (!amount)    { showToast('金額を入力してください'); return; }
+    if (!name)      { showToast('現場名を入力してください'); return; }
+    if (!date)      { showToast('日付を入力してください'); return; }
 
     const btn = document.getElementById('submit-btn');
     btn.disabled = true;
-    const companyId = document.getElementById('f-company').value;
     const record = { date, name, companyId, staff, amount: Number(amount), note };
 
     const promise = editingId
@@ -452,7 +454,6 @@
     editingId = null;
     document.getElementById('f-date').value    = toDateStr(new Date());
     document.getElementById('f-name').value    = '';
-    document.getElementById('f-company').value = '';
     document.getElementById('f-staff').value   = '';
     document.getElementById('f-amount').value  = '';
     document.getElementById('f-note').value    = '';
